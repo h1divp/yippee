@@ -4,10 +4,7 @@
 
     $: if (!$user) {
         goto('/login');
-    } else {
-        goto('/files');
     }
-
 </script>
 
-<!-- Intentionally left blank -->
+<slot/>
