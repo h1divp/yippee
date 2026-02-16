@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 
@@ -39,4 +40,19 @@ func New(path string) (*Store, error) {
 	}
 
 	return &Store{DB: db}, nil
+}
+
+// Some small interface implementations
+// so transactions play well
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// Prefer transactions when available
+func pickConn(tx *sql.Tx, db *sql.DB) execer {
+	if tx != nil {
+		return tx
+	}
+
+	return db
 }
