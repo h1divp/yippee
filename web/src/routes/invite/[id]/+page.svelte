@@ -1,0 +1,1 @@
+<h1>Someone invited you to make an account!</h1>
