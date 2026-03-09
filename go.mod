@@ -2,15 +2,22 @@ module github.com/h1divp/yippee
 
 go 1.26.0
 
-require modernc.org/sqlite v1.45.0
+require (
+	github.com/pressly/goose/v3 v3.26.0
+	github.com/stephenafamo/bob v0.42.0
+	github.com/stephenafamo/scan v0.7.0
+	golang.org/x/crypto v0.48.0
+	modernc.org/sqlite v1.45.0
+)
 
 require (
+	github.com/aarondl/opt v0.0.0-20250607033636-982744e1bd65 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/pressly/goose/v3 v3.26.0 // indirect
+	github.com/qdm12/reprint v0.0.0-20200326205758-722754a53494 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

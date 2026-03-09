@@ -14,5 +14,5 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer store.DB.Close()
+	defer store.Close()
 }

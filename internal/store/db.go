@@ -1,11 +1,11 @@
 package store
 
 import (
-	"context"
 	"database/sql"
 	"embed"
 
 	"github.com/pressly/goose/v3"
+	"github.com/stephenafamo/bob"
 
 	_ "modernc.org/sqlite"
 )
@@ -14,19 +14,19 @@ import (
 var embedMigrations embed.FS
 
 type Store struct {
-	DB *sql.DB
+	db bob.DB
 }
 
 // Path should be the root path
 // Default: path = '$USER/.yippee'
 // Also runs migrations that are embedded
 func New(path string) (*Store, error) {
-	db, err := sql.Open("sqlite", path+"/index.db")
+	sqlDB, err := sql.Open("sqlite", path+"/index.db")
 	if err != nil {
 		return nil, err
 	}
 
-	if err := db.Ping(); err != nil {
+	if err := sqlDB.Ping(); err != nil {
 		return nil, err
 	}
 
@@ -35,24 +35,21 @@ func New(path string) (*Store, error) {
 		return nil, err
 	}
 
-	if err := goose.Up(db, "migrations"); err != nil {
+	if err := goose.Up(sqlDB, "migrations"); err != nil {
 		return nil, err
 	}
 
-	return &Store{DB: db}, nil
+	return &Store{db: bob.NewDB(sqlDB)}, nil
 }
 
-// Some small interface implementations
-// so transactions play well
-type execer interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+func (s *Store) Close() error {
+	return s.db.DB.Close()
 }
 
-// Prefer transactions when available
-func pickConn(tx *sql.Tx, db *sql.DB) execer {
+// executor returns a bob.Executor, preferring a transaction when one is provided.
+func (s *Store) executor(tx *sql.Tx) bob.Executor {
 	if tx != nil {
-		return tx
+		return bob.NewTx(tx)
 	}
-
-	return db
+	return s.db
 }
