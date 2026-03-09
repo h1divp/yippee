@@ -31,6 +31,7 @@ func (j joinSet[Q]) AliasedAs(alias string) joinSet[Q] {
 }
 
 type joins[Q dialect.Joinable] struct {
+	Invites  joinSet[inviteJoins[Q]]
 	Sessions joinSet[sessionJoins[Q]]
 	Users    joinSet[userJoins[Q]]
 }
@@ -45,6 +46,7 @@ func buildJoinSet[Q interface{ aliasedAs(string) Q }, C any, F func(C, string) Q
 
 func getJoins[Q dialect.Joinable]() joins[Q] {
 	return joins[Q]{
+		Invites:  buildJoinSet[inviteJoins[Q]](Invites.Columns, buildInviteJoins),
 		Sessions: buildJoinSet[sessionJoins[Q]](Sessions.Columns, buildSessionJoins),
 		Users:    buildJoinSet[userJoins[Q]](Users.Columns, buildUserJoins),
 	}

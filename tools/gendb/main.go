@@ -26,7 +26,7 @@ func main() {
 		log.Fatalf("ping gen.db: %v", err)
 	}
 
-	if err := goose.SetDialect("sqlite3"); err != nil {
+	if err := goose.SetDialect("sqlite"); err != nil {
 		log.Fatalf("set dialect: %v", err)
 	}
 

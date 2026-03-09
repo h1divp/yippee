@@ -92,7 +92,8 @@ Two tables: `users` and `sessions`. Migrations in `internal/store/migrations/`.
 To add a new table or column:
 1. Run `goose create <name> sql` from `internal/store/`, move the file into `migrations/`
 2. Write the SQL (follow the existing `-- +goose Up` / `-- +goose Down` format)
-3. Run `make generate` to regenerate models
+3. **Add the table name to the `only:` block in `bobgen.yaml`** — new tables are excluded from generation unless explicitly listed there
+4. Run `make generate` to regenerate models
 
 Session cookie: name `session`, `HttpOnly`, `Secure`, `SameSite=Lax`, 30-day expiry, path `/`.
 
