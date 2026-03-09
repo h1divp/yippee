@@ -237,6 +237,37 @@ if errors.Is(err, dberrors.UserErrors.ErrUniqueSqliteAutoindexUsers1) {
 - Nullable fields on generated structs are `null.Val[T]`, not `*T`.
 - Store methods translate DB-level errors (`dberrors.*`) into domain sentinel errors (`ErrNotFound`, `ErrDuplicate`).
 
+### Go — Transactions
+
+Use transactions in the **services layer** when multiple store writes must succeed or fail atomically.
+
+```go
+// 1. Begin a transaction
+tx, err := s.store.BeginTx(ctx, nil)
+if err != nil {
+    return fmt.Errorf("beginning transaction: %w", err)
+}
+defer tx.Rollback() // no-op if already committed
+
+// 2. Pass tx into store methods
+user, err := s.store.CreateUser(ctx, tx, setter)
+if err != nil { return err }
+
+_, err = s.store.CreateSession(ctx, tx, sessionSetter)
+if err != nil { return err }
+
+// 3. Commit — only if all writes succeeded
+if err = tx.Commit(); err != nil {
+    return fmt.Errorf("committing transaction: %w", err)
+}
+```
+
+Key rules:
+- Always `defer tx.Rollback()` immediately after `BeginTx`. It is a no-op after `Commit()`, so it is always safe.
+- Store methods accept `*sql.Tx` as an optional second parameter. Pass `nil` when no transaction is needed.
+- The `executor(tx)` helper inside store methods routes to the transaction or the default DB connection automatically — store code never needs to branch manually.
+- Transactions belong in services, not handlers or the store layer. The store layer is transaction-aware but does not own transaction boundaries.
+
 ### Go — Services Layer
 
 - Services contain all business logic. Handlers should not contain business logic beyond request parsing and response writing.
@@ -257,6 +288,57 @@ if errors.Is(err, dberrors.UserErrors.ErrUniqueSqliteAutoindexUsers1) {
 - Table-driven tests where applicable.
 - Test files live alongside the code they test (`foo_test.go` next to `foo.go`).
 - Use `internal/factory` (generated) to create test fixtures without hand-rolling insert code.
+
+### Go — Avoid These Anti-Patterns
+
+**Ignoring errors**
+Never assign an error to `_` unless you have an explicit reason. Always check and handle or wrap every error.
+```go
+// bad
+user, _ = s.store.GetUserByID(ctx, id)
+
+// good
+user, err = s.store.GetUserByID(ctx, id)
+if err != nil { ... }
+```
+
+**Returning bare errors without context**
+Wrap errors at each layer boundary so the call chain is traceable.
+```go
+// bad
+return err
+
+// good
+return fmt.Errorf("creating session: %w", err)
+```
+
+**Using `panic` for normal error flow**
+`panic` is for truly unrecoverable programmer errors (e.g., broken invariants at startup). Never use it to signal expected failures — return an error instead. (Note: the generated `internal/factory/` code uses `panic` by design for test helpers; do not copy that pattern into production code.)
+
+**Storing `context.Context` in a struct**
+Context is request-scoped. Pass it as the first argument to every function that needs it; never store it as a field.
+```go
+// bad
+type Store struct { ctx context.Context }
+
+// good
+func (s *Store) GetUserByID(ctx context.Context, id int64) (*models.User, error)
+```
+
+**Using `context.WithValue` for dependencies**
+`context.WithValue` is for request-scoped metadata (e.g., trace IDs, authenticated user). Do not use it to pass services, DB handles, or configuration — inject those via struct fields instead.
+
+**Defining interfaces before you need them**
+Don't define an interface until there are at least two concrete implementations or an explicit test-seam requirement. Go interfaces are satisfied implicitly; define them at the point of use, not the point of definition.
+
+**Meaningless package names**
+Avoid `util`, `common`, `helpers`, `misc`. Every package should have a single clear responsibility expressible in one word (e.g., `store`, `services`, `handlers`, `config`).
+
+**Goroutine leaks**
+Every goroutine you start must have a clear termination path. When spawning goroutines, always pass a `context.Context` and select on `ctx.Done()` so the goroutine can exit when the request or operation is cancelled.
+
+**Not using `-race` in tests**
+Run `go test -race ./...` regularly (or in CI) to catch data races early, especially when concurrency is added.
 
 ### Frontend
 
