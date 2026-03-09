@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 
@@ -44,6 +45,10 @@ func New(path string) (*Store, error) {
 
 func (s *Store) Close() error {
 	return s.db.DB.Close()
+}
+
+func (s *Store) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
+	return s.db.DB.BeginTx(ctx, opts)
 }
 
 // executor returns a bob.Executor, preferring a transaction when one is provided.

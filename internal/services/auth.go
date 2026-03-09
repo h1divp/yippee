@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aarondl/opt/omit"
+	"github.com/h1divp/yippee/internal/models"
 	"github.com/h1divp/yippee/internal/store"
 	"golang.org/x/crypto/argon2"
 )
@@ -35,45 +37,51 @@ func NewAuthService(store *store.Store) *AuthService {
 	return &AuthService{store}
 }
 
-func (s *AuthService) Register(ctx context.Context, username, password string) (*store.User, string, error) {
+func (s *AuthService) Register(ctx context.Context, username, password string) (*models.User, string, error) {
 	hash, err := hashPassword(password)
 	if err != nil {
 		return nil, "", fmt.Errorf("hashing password: %w", err)
 	}
-
-	user := store.User{
-		Username:     username,
-		PasswordHash: hash,
-		Role:         "user",
-	}
-
-	id, err := s.store.CreateUser(ctx, nil, user)
-	if err != nil {
-		if errors.Is(err, store.ErrDuplicate) {
-			return nil, "", ErrUsernameTaken
-		}
-		return nil, "", fmt.Errorf("creating user: %w", err)
-	}
-	user.ID = id
 
 	token, err := generateToken()
 	if err != nil {
 		return nil, "", fmt.Errorf("generating session token: %w", err)
 	}
 
-	sess := store.Session{
-		Token:     token,
-		UserID:    id,
-		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
+	tx, err := s.store.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("beginning transaction: %w", err)
 	}
-	if _, err = s.store.CreateSession(ctx, nil, sess); err != nil {
+	defer tx.Rollback()
+
+	user, err := s.store.CreateUser(ctx, tx, &models.UserSetter{
+		Username:     omit.From(username),
+		PasswordHash: omit.From(hash),
+		Role:         omit.From("user"),
+	})
+	if err != nil {
+		if errors.Is(err, store.ErrDuplicate) {
+			return nil, "", ErrUsernameTaken
+		}
+		return nil, "", fmt.Errorf("creating user: %w", err)
+	}
+
+	if _, err = s.store.CreateSession(ctx, tx, &models.SessionSetter{
+		Token:     omit.From(token),
+		UserID:    omit.From(user.ID),
+		ExpiresAt: omit.From(time.Now().Add(30 * 24 * time.Hour)),
+	}); err != nil {
 		return nil, "", fmt.Errorf("creating session: %w", err)
 	}
 
-	return &user, token, nil
+	if err = tx.Commit(); err != nil {
+		return nil, "", fmt.Errorf("committing transaction: %w", err)
+	}
+
+	return user, token, nil
 }
 
-func (s *AuthService) Login(ctx context.Context, username, password string) (*store.User, string, error) {
+func (s *AuthService) Login(ctx context.Context, username, password string) (*models.User, string, error) {
 	user, err := s.store.GetUserByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -95,19 +103,18 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*st
 		return nil, "", fmt.Errorf("generating session token: %w", err)
 	}
 
-	sess := store.Session{
-		Token:     token,
-		UserID:    user.ID,
-		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
-	}
-	if _, err = s.store.CreateSession(ctx, nil, sess); err != nil {
+	if _, err = s.store.CreateSession(ctx, nil, &models.SessionSetter{
+		Token:     omit.From(token),
+		UserID:    omit.From(user.ID),
+		ExpiresAt: omit.From(time.Now().Add(30 * 24 * time.Hour)),
+	}); err != nil {
 		return nil, "", fmt.Errorf("creating session: %w", err)
 	}
 
 	return user, token, nil
 }
 
-func (s *AuthService) ValidateSession(ctx context.Context, token string) (*store.User, error) {
+func (s *AuthService) ValidateSession(ctx context.Context, token string) (*models.User, error) {
 	sess, err := s.store.GetSessionByToken(ctx, token)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {

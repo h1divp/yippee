@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/h1divp/yippee/internal/models"
 	"github.com/h1divp/yippee/internal/services"
-	"github.com/h1divp/yippee/internal/store"
 )
 
 type AuthHandler struct {
@@ -93,7 +93,7 @@ func (h *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) SelfHandler(w http.ResponseWriter, r *http.Request) {
-	user, ok := r.Context().Value(contextKeyUser).(*store.User)
+	user, ok := r.Context().Value(contextKeyUser).(*models.User)
 	if !ok || user == nil {
 		writeError(w, http.StatusUnauthorized, "not authenticated")
 		return

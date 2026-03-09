@@ -1,0 +1,20 @@
+sqlite:
+  driver: "modernc.org/sqlite"
+  dsn: gen.db
+  shared_schema: main
+  only:
+    users: []
+    sessions: []
+
+plugins:
+  models:
+    destination: internal/models
+    pkgname: models
+  factory:
+    destination: internal/factory
+    pkgname: factory
+  dberrors:
+    destination: internal/dberrors
+    pkgname: dberrors
+  dbinfo:
+    disabled: true
