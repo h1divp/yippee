@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/h1divp/yippee/internal/models"
 	"github.com/h1divp/yippee/internal/services"
 )
 
@@ -30,4 +31,11 @@ func AuthMiddleware(authServ *services.AuthService) func(http.Handler) http.Hand
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// UserFromContext extracts the authenticated user from a request context.
+// Returns nil if no user is present (unauthenticated request).
+func UserFromContext(ctx context.Context) *models.User {
+	user, _ := ctx.Value(contextKeyUser).(*models.User)
+	return user
 }

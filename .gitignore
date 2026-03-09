@@ -27,3 +27,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Temporary database for code generation
+gen.db

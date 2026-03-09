@@ -4,70 +4,44 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
-	"time"
 
-	"github.com/stephenafamo/bob"
+	"github.com/h1divp/yippee/internal/dberrors"
+	"github.com/h1divp/yippee/internal/models"
 	"github.com/stephenafamo/bob/dialect/sqlite"
-	"github.com/stephenafamo/bob/dialect/sqlite/im"
 	"github.com/stephenafamo/bob/dialect/sqlite/sm"
-	"github.com/stephenafamo/scan"
 )
 
-type User struct {
-	ID           int64     `db:"id"`
-	Username     string    `db:"username"`
-	PasswordHash string    `db:"password_hash"`
-	Role         string    `db:"role"`
-	FullName     *string   `db:"full_name"`
-	Email        *string   `db:"email"`
-	CreatedAt    time.Time `db:"created_at"`
-	UpdatedAt    time.Time `db:"updated_at"`
-}
-
-func (s *Store) CreateUser(ctx context.Context, tx *sql.Tx, u User) (int64, error) {
-	q := sqlite.Insert(
-		im.Into("users", "username", "password_hash", "role", "full_name", "email"),
-		im.Values(sqlite.Arg(u.Username, u.PasswordHash, u.Role, u.FullName, u.Email)),
-	)
-	res, err := bob.Exec(ctx, s.executor(tx), q)
+func (s *Store) CreateUser(ctx context.Context, tx *sql.Tx, setter *models.UserSetter) (*models.User, error) {
+	user, err := models.Users.Insert(setter).One(ctx, s.executor(tx))
 	if err != nil {
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			return 0, ErrDuplicate
+		if errors.Is(err, dberrors.UserErrors.ErrUniqueSqliteAutoindexUsers1) {
+			return nil, ErrDuplicate
 		}
-		return 0, err
+		return nil, err
 	}
-	return res.LastInsertId()
+	return user, nil
 }
 
-func (s *Store) GetUserByUsername(ctx context.Context, username string) (*User, error) {
-	q := sqlite.Select(
-		sm.Columns("id", "username", "password_hash", "role", "full_name", "email", "created_at", "updated_at"),
-		sm.From("users"),
-		sm.Where(sqlite.Quote("username").EQ(sqlite.Arg(username))),
-	)
-	u, err := bob.One(ctx, s.db, q, scan.StructMapper[User]())
+func (s *Store) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
+	user, err := models.Users.Query(
+		sm.Where(models.Users.Columns.Username.EQ(sqlite.Arg(username))),
+	).One(ctx, s.db)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	return &u, nil
+	return user, nil
 }
 
-func (s *Store) GetUserByID(ctx context.Context, id int64) (*User, error) {
-	q := sqlite.Select(
-		sm.Columns("id", "username", "password_hash", "role", "full_name", "email", "created_at", "updated_at"),
-		sm.From("users"),
-		sm.Where(sqlite.Quote("id").EQ(sqlite.Arg(id))),
-	)
-	u, err := bob.One(ctx, s.db, q, scan.StructMapper[User]())
+func (s *Store) GetUserByID(ctx context.Context, id int64) (*models.User, error) {
+	user, err := models.FindUser(ctx, s.db, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	return &u, nil
+	return user, nil
 }
