@@ -8,6 +8,9 @@ import "github.com/stephenafamo/bob"
 // Set the testDB to enable tests that use the database
 var testDB bob.Transactor[bob.Tx]
 
+// Make sure the type Invite runs hooks after queries
+var _ bob.HookableType = &Invite{}
+
 // Make sure the type Session runs hooks after queries
 var _ bob.HookableType = &Session{}
 

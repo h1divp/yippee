@@ -5,6 +5,7 @@ sqlite:
   only:
     users: []
     sessions: []
+    invites: []
 
 plugins:
   models:

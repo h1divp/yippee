@@ -12,12 +12,51 @@ import (
 )
 
 type Factory struct {
+	baseInviteMods  InviteModSlice
 	baseSessionMods SessionModSlice
 	baseUserMods    UserModSlice
 }
 
 func New() *Factory {
 	return &Factory{}
+}
+
+func (f *Factory) NewInvite(mods ...InviteMod) *InviteTemplate {
+	return f.NewInviteWithContext(context.Background(), mods...)
+}
+
+func (f *Factory) NewInviteWithContext(ctx context.Context, mods ...InviteMod) *InviteTemplate {
+	o := &InviteTemplate{f: f}
+
+	if f != nil {
+		f.baseInviteMods.Apply(ctx, o)
+	}
+
+	InviteModSlice(mods).Apply(ctx, o)
+
+	return o
+}
+
+func (f *Factory) FromExistingInvite(m *models.Invite) *InviteTemplate {
+	o := &InviteTemplate{f: f, alreadyPersisted: true}
+
+	o.ID = func() int64 { return m.ID }
+	o.Code = func() string { return m.Code }
+	o.CreatedBy = func() int64 { return m.CreatedBy }
+	o.UsedBy = func() null.Val[int64] { return m.UsedBy }
+	o.UsedAt = func() null.Val[time.Time] { return m.UsedAt }
+	o.ExpiresAt = func() null.Val[time.Time] { return m.ExpiresAt }
+	o.CreatedAt = func() time.Time { return m.CreatedAt }
+
+	ctx := context.Background()
+	if m.R.UsedByUser != nil {
+		InviteMods.WithExistingUsedByUser(m.R.UsedByUser).Apply(ctx, o)
+	}
+	if m.R.CreatedByUser != nil {
+		InviteMods.WithExistingCreatedByUser(m.R.CreatedByUser).Apply(ctx, o)
+	}
+
+	return o
 }
 
 func (f *Factory) NewSession(mods ...SessionMod) *SessionTemplate {
@@ -82,11 +121,25 @@ func (f *Factory) FromExistingUser(m *models.User) *UserTemplate {
 	o.UpdatedAt = func() time.Time { return m.UpdatedAt }
 
 	ctx := context.Background()
+	if len(m.R.UsedByInvites) > 0 {
+		UserMods.AddExistingUsedByInvites(m.R.UsedByInvites...).Apply(ctx, o)
+	}
+	if len(m.R.CreatedByInvites) > 0 {
+		UserMods.AddExistingCreatedByInvites(m.R.CreatedByInvites...).Apply(ctx, o)
+	}
 	if len(m.R.Sessions) > 0 {
 		UserMods.AddExistingSessions(m.R.Sessions...).Apply(ctx, o)
 	}
 
 	return o
+}
+
+func (f *Factory) ClearBaseInviteMods() {
+	f.baseInviteMods = nil
+}
+
+func (f *Factory) AddBaseInviteMod(mods ...InviteMod) {
+	f.baseInviteMods = append(f.baseInviteMods, mods...)
 }
 
 func (f *Factory) ClearBaseSessionMods() {

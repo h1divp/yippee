@@ -53,9 +53,19 @@ type UserTemplate struct {
 }
 
 type userR struct {
-	Sessions []*userRSessionsR
+	UsedByInvites    []*userRUsedByInvitesR
+	CreatedByInvites []*userRCreatedByInvitesR
+	Sessions         []*userRSessionsR
 }
 
+type userRUsedByInvitesR struct {
+	number int
+	o      *InviteTemplate
+}
+type userRCreatedByInvitesR struct {
+	number int
+	o      *InviteTemplate
+}
 type userRSessionsR struct {
 	number int
 	o      *SessionTemplate
@@ -71,6 +81,32 @@ func (o *UserTemplate) Apply(ctx context.Context, mods ...UserMod) {
 // setModelRels creates and sets the relationships on *models.User
 // according to the relationships in the template. Nothing is inserted into the db
 func (t UserTemplate) setModelRels(o *models.User) {
+	if t.r.UsedByInvites != nil {
+		rel := models.InviteSlice{}
+		for _, r := range t.r.UsedByInvites {
+			related := r.o.BuildMany(r.number)
+			for _, rel := range related {
+				rel.UsedBy = null.From(o.ID) // h2
+				rel.R.UsedByUser = o
+			}
+			rel = append(rel, related...)
+		}
+		o.R.UsedByInvites = rel
+	}
+
+	if t.r.CreatedByInvites != nil {
+		rel := models.InviteSlice{}
+		for _, r := range t.r.CreatedByInvites {
+			related := r.o.BuildMany(r.number)
+			for _, rel := range related {
+				rel.CreatedBy = o.ID // h2
+				rel.R.CreatedByUser = o
+			}
+			rel = append(rel, related...)
+		}
+		o.R.CreatedByInvites = rel
+	}
+
 	if t.r.Sessions != nil {
 		rel := models.SessionSlice{}
 		for _, r := range t.r.Sessions {
@@ -204,6 +240,46 @@ func ensureCreatableUser(m *models.UserSetter) {
 func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.User) error {
 	var err error
 
+	isUsedByInvitesDone, _ := userRelUsedByInvitesCtx.Value(ctx)
+	if !isUsedByInvitesDone && o.r.UsedByInvites != nil {
+		ctx = userRelUsedByInvitesCtx.WithValue(ctx, true)
+		for _, r := range o.r.UsedByInvites {
+			if r.o.alreadyPersisted {
+				m.R.UsedByInvites = append(m.R.UsedByInvites, r.o.Build())
+			} else {
+				rel0, err := r.o.CreateMany(ctx, exec, r.number)
+				if err != nil {
+					return err
+				}
+
+				err = m.AttachUsedByInvites(ctx, exec, rel0...)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	isCreatedByInvitesDone, _ := userRelCreatedByInvitesCtx.Value(ctx)
+	if !isCreatedByInvitesDone && o.r.CreatedByInvites != nil {
+		ctx = userRelCreatedByInvitesCtx.WithValue(ctx, true)
+		for _, r := range o.r.CreatedByInvites {
+			if r.o.alreadyPersisted {
+				m.R.CreatedByInvites = append(m.R.CreatedByInvites, r.o.Build())
+			} else {
+				rel1, err := r.o.CreateMany(ctx, exec, r.number)
+				if err != nil {
+					return err
+				}
+
+				err = m.AttachCreatedByInvites(ctx, exec, rel1...)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
 	isSessionsDone, _ := userRelSessionsCtx.Value(ctx)
 	if !isSessionsDone && o.r.Sessions != nil {
 		ctx = userRelSessionsCtx.WithValue(ctx, true)
@@ -211,12 +287,12 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 			if r.o.alreadyPersisted {
 				m.R.Sessions = append(m.R.Sessions, r.o.Build())
 			} else {
-				rel0, err := r.o.CreateMany(ctx, exec, r.number)
+				rel2, err := r.o.CreateMany(ctx, exec, r.number)
 				if err != nil {
 					return err
 				}
 
-				err = m.AttachSessions(ctx, exec, rel0...)
+				err = m.AttachSessions(ctx, exec, rel2...)
 				if err != nil {
 					return err
 				}
@@ -625,6 +701,102 @@ func (m userMods) WithParentsCascading() UserMod {
 			return
 		}
 		ctx = userWithParentsCascadingCtx.WithValue(ctx, true)
+	})
+}
+
+func (m userMods) WithUsedByInvites(number int, related *InviteTemplate) UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		o.r.UsedByInvites = []*userRUsedByInvitesR{{
+			number: number,
+			o:      related,
+		}}
+	})
+}
+
+func (m userMods) WithNewUsedByInvites(number int, mods ...InviteMod) UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		related := o.f.NewInviteWithContext(ctx, mods...)
+		m.WithUsedByInvites(number, related).Apply(ctx, o)
+	})
+}
+
+func (m userMods) AddUsedByInvites(number int, related *InviteTemplate) UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		o.r.UsedByInvites = append(o.r.UsedByInvites, &userRUsedByInvitesR{
+			number: number,
+			o:      related,
+		})
+	})
+}
+
+func (m userMods) AddNewUsedByInvites(number int, mods ...InviteMod) UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		related := o.f.NewInviteWithContext(ctx, mods...)
+		m.AddUsedByInvites(number, related).Apply(ctx, o)
+	})
+}
+
+func (m userMods) AddExistingUsedByInvites(existingModels ...*models.Invite) UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		for _, em := range existingModels {
+			o.r.UsedByInvites = append(o.r.UsedByInvites, &userRUsedByInvitesR{
+				o: o.f.FromExistingInvite(em),
+			})
+		}
+	})
+}
+
+func (m userMods) WithoutUsedByInvites() UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		o.r.UsedByInvites = nil
+	})
+}
+
+func (m userMods) WithCreatedByInvites(number int, related *InviteTemplate) UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		o.r.CreatedByInvites = []*userRCreatedByInvitesR{{
+			number: number,
+			o:      related,
+		}}
+	})
+}
+
+func (m userMods) WithNewCreatedByInvites(number int, mods ...InviteMod) UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		related := o.f.NewInviteWithContext(ctx, mods...)
+		m.WithCreatedByInvites(number, related).Apply(ctx, o)
+	})
+}
+
+func (m userMods) AddCreatedByInvites(number int, related *InviteTemplate) UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		o.r.CreatedByInvites = append(o.r.CreatedByInvites, &userRCreatedByInvitesR{
+			number: number,
+			o:      related,
+		})
+	})
+}
+
+func (m userMods) AddNewCreatedByInvites(number int, mods ...InviteMod) UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		related := o.f.NewInviteWithContext(ctx, mods...)
+		m.AddCreatedByInvites(number, related).Apply(ctx, o)
+	})
+}
+
+func (m userMods) AddExistingCreatedByInvites(existingModels ...*models.Invite) UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		for _, em := range existingModels {
+			o.r.CreatedByInvites = append(o.r.CreatedByInvites, &userRCreatedByInvitesR{
+				o: o.f.FromExistingInvite(em),
+			})
+		}
+	})
+}
+
+func (m userMods) WithoutCreatedByInvites() UserMod {
+	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
+		o.r.CreatedByInvites = nil
 	})
 }
 

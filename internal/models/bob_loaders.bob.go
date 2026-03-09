@@ -17,12 +17,14 @@ import (
 var Preload = getPreloaders()
 
 type preloaders struct {
+	Invite  invitePreloader
 	Session sessionPreloader
 	User    userPreloader
 }
 
 func getPreloaders() preloaders {
 	return preloaders{
+		Invite:  buildInvitePreloader(),
 		Session: buildSessionPreloader(),
 		User:    buildUserPreloader(),
 	}
@@ -35,12 +37,14 @@ var (
 )
 
 type thenLoaders[Q orm.Loadable] struct {
+	Invite  inviteThenLoader[Q]
 	Session sessionThenLoader[Q]
 	User    userThenLoader[Q]
 }
 
 func getThenLoaders[Q orm.Loadable]() thenLoaders[Q] {
 	return thenLoaders[Q]{
+		Invite:  buildInviteThenLoader[Q](),
 		Session: buildSessionThenLoader[Q](),
 		User:    buildUserThenLoader[Q](),
 	}
