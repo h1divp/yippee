@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/h1divp/yippee/internal/services"
+	"github.com/h1divp/yippee/internal/store"
 )
 
 type AuthHandler struct {
@@ -11,9 +14,7 @@ type AuthHandler struct {
 }
 
 func NewAuthHandler(authServ *services.AuthService) *AuthHandler {
-	return &AuthHandler{
-		authServ,
-	}
+	return &AuthHandler{authServ}
 }
 
 type RegisterBody struct {
@@ -23,15 +24,36 @@ type RegisterBody struct {
 }
 
 func (h *AuthHandler) RegisterHandler(w http.ResponseWriter, r *http.Request) {
-	//TODO: Implement this handler and service
+	var body RegisterBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
 
-	// 1) Parses and validate body
-	// 2) Checks code to see if valid
-	// 3) Retrieves role for code
-	// 4) Hash and salt password
-	// 5) Attempt to create user
-	// 6) On success, return http only, secure cookie
-	// Cookie is valid for 30 days
+	if body.Username == "" || body.Password == "" {
+		writeError(w, http.StatusBadRequest, "username and password are required")
+		return
+	}
+
+	// TODO: Validate invite code and determine role
+
+	user, token, err := h.authServ.Register(r.Context(), body.Username, body.Password)
+	if err != nil {
+		if errors.Is(err, services.ErrUsernameTaken) {
+			writeError(w, http.StatusConflict, "username is already taken")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "registration failed")
+		return
+	}
+
+	setSessionCookie(w, token)
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id":       user.ID,
+		"username": user.Username,
+		"role":     user.Role,
+	})
 }
 
 type LoginBody struct {
@@ -40,18 +62,46 @@ type LoginBody struct {
 }
 
 func (h *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
-	//TODO: Implement this handler and service
+	var body LoginBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
 
-	// 1) Parse login body and validate
-	// 2) Attempt to sign in
-	// 3) If success, return http only, secure cookie
-	// Cookie is valid for 30 days
+	if body.Username == "" || body.Password == "" {
+		writeError(w, http.StatusBadRequest, "username and password are required")
+		return
+	}
+
+	user, token, err := h.authServ.Login(r.Context(), body.Username, body.Password)
+	if err != nil {
+		if errors.Is(err, services.ErrInvalidCredentials) {
+			writeError(w, http.StatusUnauthorized, "invalid username or password")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "login failed")
+		return
+	}
+
+	setSessionCookie(w, token)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id":       user.ID,
+		"username": user.Username,
+		"role":     user.Role,
+	})
 }
 
 func (h *AuthHandler) SelfHandler(w http.ResponseWriter, r *http.Request) {
-	//TODO: Implement this handler and services
+	user, ok := r.Context().Value(contextKeyUser).(*store.User)
+	if !ok || user == nil {
+		writeError(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
 
-	// Yes i know, probably better names for this handler
-	// 1) Retrieve user from context
-	// 2) Return the information
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id":       user.ID,
+		"username": user.Username,
+		"role":     user.Role,
+	})
 }
