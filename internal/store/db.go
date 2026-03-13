@@ -31,12 +31,12 @@ func New(path string) (*Store, error) {
 		return nil, err
 	}
 
-	goose.SetBaseFS(embedMigrations)
-	if err := goose.SetDialect("sqlite"); err != nil {
+	provider, err := goose.NewProvider(goose.DialectSQLite3, sqlDB, embedMigrations)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := goose.Up(sqlDB, "migrations"); err != nil {
+	if _, err = provider.Up(context.Background()); err != nil {
 		return nil, err
 	}
 
