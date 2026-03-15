@@ -36,6 +36,9 @@ func New(path string) (*Store, error) {
 		return nil, err
 	}
 
+	//TODO(config): Make this optional based on config
+	goose.SetLogger(goose.NopLogger())
+
 	if err := goose.Up(sqlDB, "migrations"); err != nil {
 		return nil, err
 	}
