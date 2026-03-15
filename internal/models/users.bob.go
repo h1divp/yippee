@@ -49,9 +49,8 @@ type UsersQuery = *sqlite.ViewQuery[*User, UserSlice]
 
 // userR is where relationships are stored.
 type userR struct {
-	UsedByInvites    InviteSlice  // fk_invites_0
-	CreatedByInvites InviteSlice  // fk_invites_1
-	Sessions         SessionSlice // fk_sessions_0
+	UsedByInvites    InviteSlice // fk_invites_0
+	CreatedByInvites InviteSlice // fk_invites_1
 }
 
 func buildUserColumns(alias string) userColumns {
@@ -544,25 +543,6 @@ func (os UserSlice) CreatedByInvites(mods ...bob.Mod[*dialect.SelectQuery]) Invi
 	)...)
 }
 
-// Sessions starts a query for related objects on sessions
-func (o *User) Sessions(mods ...bob.Mod[*dialect.SelectQuery]) SessionsQuery {
-	return Sessions.Query(append(mods,
-		sm.Where(Sessions.Columns.UserID.EQ(sqlite.Arg(o.ID))),
-	)...)
-}
-
-func (os UserSlice) Sessions(mods ...bob.Mod[*dialect.SelectQuery]) SessionsQuery {
-	PKArgSlice := make([]bob.Expression, len(os))
-	for i, o := range os {
-		PKArgSlice[i] = sqlite.ArgGroup(o.ID)
-	}
-	PKArgExpr := sqlite.Group(PKArgSlice...)
-
-	return Sessions.Query(append(mods,
-		sm.Where(sqlite.Group(Sessions.Columns.UserID).OP("IN", PKArgExpr)),
-	)...)
-}
-
 func insertUserUsedByInvites0(ctx context.Context, exec bob.Executor, invites1 []*InviteSetter, user0 *User) (InviteSlice, error) {
 	for i := range invites1 {
 		invites1[i].UsedBy = omitnull.From(user0.ID)
@@ -633,7 +613,7 @@ func (user0 *User) AttachUsedByInvites(ctx context.Context, exec bob.Executor, r
 
 func insertUserCreatedByInvites0(ctx context.Context, exec bob.Executor, invites1 []*InviteSetter, user0 *User) (InviteSlice, error) {
 	for i := range invites1 {
-		invites1[i].CreatedBy = omit.From(user0.ID)
+		invites1[i].CreatedBy = omitnull.From(user0.ID)
 	}
 
 	ret, err := Invites.Insert(bob.ToMods(invites1...)).All(ctx, exec)
@@ -646,7 +626,7 @@ func insertUserCreatedByInvites0(ctx context.Context, exec bob.Executor, invites
 
 func attachUserCreatedByInvites0(ctx context.Context, exec bob.Executor, count int, invites1 InviteSlice, user0 *User) (InviteSlice, error) {
 	setter := &InviteSetter{
-		CreatedBy: omit.From(user0.ID),
+		CreatedBy: omitnull.From(user0.ID),
 	}
 
 	err := invites1.UpdateAll(ctx, exec, *setter)
@@ -694,74 +674,6 @@ func (user0 *User) AttachCreatedByInvites(ctx context.Context, exec bob.Executor
 
 	for _, rel := range related {
 		rel.R.CreatedByUser = user0
-	}
-
-	return nil
-}
-
-func insertUserSessions0(ctx context.Context, exec bob.Executor, sessions1 []*SessionSetter, user0 *User) (SessionSlice, error) {
-	for i := range sessions1 {
-		sessions1[i].UserID = omit.From(user0.ID)
-	}
-
-	ret, err := Sessions.Insert(bob.ToMods(sessions1...)).All(ctx, exec)
-	if err != nil {
-		return ret, fmt.Errorf("insertUserSessions0: %w", err)
-	}
-
-	return ret, nil
-}
-
-func attachUserSessions0(ctx context.Context, exec bob.Executor, count int, sessions1 SessionSlice, user0 *User) (SessionSlice, error) {
-	setter := &SessionSetter{
-		UserID: omit.From(user0.ID),
-	}
-
-	err := sessions1.UpdateAll(ctx, exec, *setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachUserSessions0: %w", err)
-	}
-
-	return sessions1, nil
-}
-
-func (user0 *User) InsertSessions(ctx context.Context, exec bob.Executor, related ...*SessionSetter) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-
-	sessions1, err := insertUserSessions0(ctx, exec, related, user0)
-	if err != nil {
-		return err
-	}
-
-	user0.R.Sessions = append(user0.R.Sessions, sessions1...)
-
-	for _, rel := range sessions1 {
-		rel.R.User = user0
-	}
-	return nil
-}
-
-func (user0 *User) AttachSessions(ctx context.Context, exec bob.Executor, related ...*Session) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-	sessions1 := SessionSlice(related)
-
-	_, err = attachUserSessions0(ctx, exec, len(related), sessions1, user0)
-	if err != nil {
-		return err
-	}
-
-	user0.R.Sessions = append(user0.R.Sessions, sessions1...)
-
-	for _, rel := range related {
-		rel.R.User = user0
 	}
 
 	return nil
@@ -829,20 +741,6 @@ func (o *User) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
-	case "Sessions":
-		rels, ok := retrieved.(SessionSlice)
-		if !ok {
-			return fmt.Errorf("user cannot load %T as %q", retrieved, name)
-		}
-
-		o.R.Sessions = rels
-
-		for _, rel := range rels {
-			if rel != nil {
-				rel.R.User = o
-			}
-		}
-		return nil
 	default:
 		return fmt.Errorf("user has no relationship %q", name)
 	}
@@ -857,7 +755,6 @@ func buildUserPreloader() userPreloader {
 type userThenLoader[Q orm.Loadable] struct {
 	UsedByInvites    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	CreatedByInvites func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	Sessions         func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
@@ -866,9 +763,6 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 	}
 	type CreatedByInvitesLoadInterface interface {
 		LoadCreatedByInvites(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
-	}
-	type SessionsLoadInterface interface {
-		LoadSessions(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 
 	return userThenLoader[Q]{
@@ -882,12 +776,6 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 			"CreatedByInvites",
 			func(ctx context.Context, exec bob.Executor, retrieved CreatedByInvitesLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadCreatedByInvites(ctx, exec, mods...)
-			},
-		),
-		Sessions: thenLoadBuilder[Q](
-			"Sessions",
-			func(ctx context.Context, exec bob.Executor, retrieved SessionsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadSessions(ctx, exec, mods...)
 			},
 		),
 	}
@@ -1005,7 +893,10 @@ func (os UserSlice) LoadCreatedByInvites(ctx context.Context, exec bob.Executor,
 
 		for _, rel := range invites {
 
-			if !(o.ID == rel.CreatedBy) {
+			if !rel.CreatedBy.IsValue() {
+				continue
+			}
+			if !(rel.CreatedBy.IsValue() && o.ID == rel.CreatedBy.MustGet()) {
 				continue
 			}
 
@@ -1018,72 +909,10 @@ func (os UserSlice) LoadCreatedByInvites(ctx context.Context, exec bob.Executor,
 	return nil
 }
 
-// LoadSessions loads the user's Sessions into the .R struct
-func (o *User) LoadSessions(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if o == nil {
-		return nil
-	}
-
-	// Reset the relationship
-	o.R.Sessions = nil
-
-	related, err := o.Sessions(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, rel := range related {
-		rel.R.User = o
-	}
-
-	o.R.Sessions = related
-	return nil
-}
-
-// LoadSessions loads the user's Sessions into the .R struct
-func (os UserSlice) LoadSessions(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if len(os) == 0 {
-		return nil
-	}
-
-	sessions, err := os.Sessions(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, o := range os {
-		if o == nil {
-			continue
-		}
-
-		o.R.Sessions = nil
-	}
-
-	for _, o := range os {
-		if o == nil {
-			continue
-		}
-
-		for _, rel := range sessions {
-
-			if !(o.ID == rel.UserID) {
-				continue
-			}
-
-			rel.R.User = o
-
-			o.R.Sessions = append(o.R.Sessions, rel)
-		}
-	}
-
-	return nil
-}
-
 type userJoins[Q dialect.Joinable] struct {
 	typ              string
 	UsedByInvites    modAs[Q, inviteColumns]
 	CreatedByInvites modAs[Q, inviteColumns]
-	Sessions         modAs[Q, sessionColumns]
 }
 
 func (j userJoins[Q]) aliasedAs(alias string) userJoins[Q] {
@@ -1115,20 +944,6 @@ func buildUserJoins[Q dialect.Joinable](cols userColumns, typ string) userJoins[
 				{
 					mods = append(mods, dialect.Join[Q](typ, Invites.Name().As(to.Alias())).On(
 						to.CreatedBy.EQ(cols.ID),
-					))
-				}
-
-				return mods
-			},
-		},
-		Sessions: modAs[Q, sessionColumns]{
-			c: Sessions.Columns,
-			f: func(to sessionColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, Sessions.Name().As(to.Alias())).On(
-						to.UserID.EQ(cols.ID),
 					))
 				}
 

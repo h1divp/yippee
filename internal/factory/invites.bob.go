@@ -39,7 +39,7 @@ func (mods InviteModSlice) Apply(ctx context.Context, n *InviteTemplate) {
 type InviteTemplate struct {
 	ID        func() int64
 	Code      func() string
-	CreatedBy func() int64
+	CreatedBy func() null.Val[int64]
 	UsedBy    func() null.Val[int64]
 	UsedAt    func() null.Val[time.Time]
 	ExpiresAt func() null.Val[time.Time]
@@ -83,7 +83,7 @@ func (t InviteTemplate) setModelRels(o *models.Invite) {
 	if t.r.CreatedByUser != nil {
 		rel := t.r.CreatedByUser.o.Build()
 		rel.R.CreatedByInvites = append(rel.R.CreatedByInvites, o)
-		o.CreatedBy = rel.ID // h2
+		o.CreatedBy = null.From(rel.ID) // h2
 		o.R.CreatedByUser = rel
 	}
 }
@@ -103,7 +103,7 @@ func (o InviteTemplate) BuildSetter() *models.InviteSetter {
 	}
 	if o.CreatedBy != nil {
 		val := o.CreatedBy()
-		m.CreatedBy = omit.From(val)
+		m.CreatedBy = omitnull.FromNull(val)
 	}
 	if o.UsedBy != nil {
 		val := o.UsedBy()
@@ -188,10 +188,6 @@ func ensureCreatableInvite(m *models.InviteSetter) {
 		val := random_string(nil)
 		m.Code = omit.From(val)
 	}
-	if !(m.CreatedBy.IsValue()) {
-		val := random_int64(nil)
-		m.CreatedBy = omit.From(val)
-	}
 }
 
 // insertOptRels creates and inserts any optional the relationships on *models.Invite
@@ -219,6 +215,25 @@ func (o *InviteTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m
 
 	}
 
+	isCreatedByUserDone, _ := inviteRelCreatedByUserCtx.Value(ctx)
+	if !isCreatedByUserDone && o.r.CreatedByUser != nil {
+		ctx = inviteRelCreatedByUserCtx.WithValue(ctx, true)
+		if o.r.CreatedByUser.o.alreadyPersisted {
+			m.R.CreatedByUser = o.r.CreatedByUser.o.Build()
+		} else {
+			var rel1 *models.User
+			rel1, err = o.r.CreatedByUser.o.Create(ctx, exec)
+			if err != nil {
+				return err
+			}
+			err = m.AttachCreatedByUser(ctx, exec, rel1)
+			if err != nil {
+				return err
+			}
+		}
+
+	}
+
 	return err
 }
 
@@ -229,29 +244,10 @@ func (o *InviteTemplate) Create(ctx context.Context, exec bob.Executor) (*models
 	opt := o.BuildSetter()
 	ensureCreatableInvite(opt)
 
-	if o.r.CreatedByUser == nil {
-		InviteMods.WithNewCreatedByUser().Apply(ctx, o)
-	}
-
-	var rel1 *models.User
-
-	if o.r.CreatedByUser.o.alreadyPersisted {
-		rel1 = o.r.CreatedByUser.o.Build()
-	} else {
-		rel1, err = o.r.CreatedByUser.o.Create(ctx, exec)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	opt.CreatedBy = omit.From(rel1.ID)
-
 	m, err := models.Invites.Insert(opt).One(ctx, exec)
 	if err != nil {
 		return nil, err
 	}
-
-	m.R.CreatedByUser = rel1
 
 	if err := o.insertOptRels(ctx, exec, m); err != nil {
 		return nil, err
@@ -403,14 +399,14 @@ func (m inviteMods) RandomCode(f *faker.Faker) InviteMod {
 }
 
 // Set the model columns to this value
-func (m inviteMods) CreatedBy(val int64) InviteMod {
+func (m inviteMods) CreatedBy(val null.Val[int64]) InviteMod {
 	return InviteModFunc(func(_ context.Context, o *InviteTemplate) {
-		o.CreatedBy = func() int64 { return val }
+		o.CreatedBy = func() null.Val[int64] { return val }
 	})
 }
 
 // Set the Column from the function
-func (m inviteMods) CreatedByFunc(f func() int64) InviteMod {
+func (m inviteMods) CreatedByFunc(f func() null.Val[int64]) InviteMod {
 	return InviteModFunc(func(_ context.Context, o *InviteTemplate) {
 		o.CreatedBy = f
 	})
@@ -425,10 +421,32 @@ func (m inviteMods) UnsetCreatedBy() InviteMod {
 
 // Generates a random value for the column using the given faker
 // if faker is nil, a default faker is used
+// The generated value is sometimes null
 func (m inviteMods) RandomCreatedBy(f *faker.Faker) InviteMod {
 	return InviteModFunc(func(_ context.Context, o *InviteTemplate) {
-		o.CreatedBy = func() int64 {
-			return random_int64(f)
+		o.CreatedBy = func() null.Val[int64] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_int64(f)
+			return null.From(val)
+		}
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is never null
+func (m inviteMods) RandomCreatedByNotNull(f *faker.Faker) InviteMod {
+	return InviteModFunc(func(_ context.Context, o *InviteTemplate) {
+		o.CreatedBy = func() null.Val[int64] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_int64(f)
+			return null.From(val)
 		}
 	})
 }

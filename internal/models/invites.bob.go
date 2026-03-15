@@ -27,7 +27,7 @@ import (
 type Invite struct {
 	ID        int64               `db:"id,pk" `
 	Code      string              `db:"code" `
-	CreatedBy int64               `db:"created_by" `
+	CreatedBy null.Val[int64]     `db:"created_by" `
 	UsedBy    null.Val[int64]     `db:"used_by" `
 	UsedAt    null.Val[time.Time] `db:"used_at" `
 	ExpiresAt null.Val[time.Time] `db:"expires_at" `
@@ -94,7 +94,7 @@ func (inviteColumns) AliasedAs(alias string) inviteColumns {
 type InviteSetter struct {
 	ID        omit.Val[int64]         `db:"id,pk" `
 	Code      omit.Val[string]        `db:"code" `
-	CreatedBy omit.Val[int64]         `db:"created_by" `
+	CreatedBy omitnull.Val[int64]     `db:"created_by" `
 	UsedBy    omitnull.Val[int64]     `db:"used_by" `
 	UsedAt    omitnull.Val[time.Time] `db:"used_at" `
 	ExpiresAt omitnull.Val[time.Time] `db:"expires_at" `
@@ -109,7 +109,7 @@ func (s InviteSetter) SetColumns() []string {
 	if s.Code.IsValue() {
 		vals = append(vals, "code")
 	}
-	if s.CreatedBy.IsValue() {
+	if !s.CreatedBy.IsUnset() {
 		vals = append(vals, "created_by")
 	}
 	if !s.UsedBy.IsUnset() {
@@ -134,8 +134,8 @@ func (s InviteSetter) Overwrite(t *Invite) {
 	if s.Code.IsValue() {
 		t.Code = s.Code.MustGet()
 	}
-	if s.CreatedBy.IsValue() {
-		t.CreatedBy = s.CreatedBy.MustGet()
+	if !s.CreatedBy.IsUnset() {
+		t.CreatedBy = s.CreatedBy.MustGetNull()
 	}
 	if !s.UsedBy.IsUnset() {
 		t.UsedBy = s.UsedBy.MustGetNull()
@@ -174,8 +174,8 @@ func (s *InviteSetter) Apply(q *dialect.InsertQuery) {
 			vals = append(vals, sqlite.Arg(s.Code.MustGet()))
 		}
 
-		if s.CreatedBy.IsValue() {
-			vals = append(vals, sqlite.Arg(s.CreatedBy.MustGet()))
+		if !s.CreatedBy.IsUnset() {
+			vals = append(vals, sqlite.Arg(s.CreatedBy.MustGetNull()))
 		}
 
 		if !s.UsedBy.IsUnset() {
@@ -223,7 +223,7 @@ func (s InviteSetter) Expressions(prefix ...string) []bob.Expression {
 		}})
 	}
 
-	if s.CreatedBy.IsValue() {
+	if !s.CreatedBy.IsUnset() {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			sqlite.Quote(append(prefix, "created_by")...),
 			sqlite.Arg(s.CreatedBy),
@@ -572,7 +572,7 @@ func (invite0 *Invite) AttachUsedByUser(ctx context.Context, exec bob.Executor, 
 
 func attachInviteCreatedByUser0(ctx context.Context, exec bob.Executor, count int, invite0 *Invite, user1 *User) (*Invite, error) {
 	setter := &InviteSetter{
-		CreatedBy: omit.From(user1.ID),
+		CreatedBy: omitnull.From(user1.ID),
 	}
 
 	err := invite0.Update(ctx, exec, setter)
@@ -621,7 +621,7 @@ func (invite0 *Invite) AttachCreatedByUser(ctx context.Context, exec bob.Executo
 type inviteWhere[Q sqlite.Filterable] struct {
 	ID        sqlite.WhereMod[Q, int64]
 	Code      sqlite.WhereMod[Q, string]
-	CreatedBy sqlite.WhereMod[Q, int64]
+	CreatedBy sqlite.WhereNullMod[Q, int64]
 	UsedBy    sqlite.WhereNullMod[Q, int64]
 	UsedAt    sqlite.WhereNullMod[Q, time.Time]
 	ExpiresAt sqlite.WhereNullMod[Q, time.Time]
@@ -636,7 +636,7 @@ func buildInviteWhere[Q sqlite.Filterable](cols inviteColumns) inviteWhere[Q] {
 	return inviteWhere[Q]{
 		ID:        sqlite.Where[Q, int64](cols.ID),
 		Code:      sqlite.Where[Q, string](cols.Code),
-		CreatedBy: sqlite.Where[Q, int64](cols.CreatedBy),
+		CreatedBy: sqlite.WhereNull[Q, int64](cols.CreatedBy),
 		UsedBy:    sqlite.WhereNull[Q, int64](cols.UsedBy),
 		UsedAt:    sqlite.WhereNull[Q, time.Time](cols.UsedAt),
 		ExpiresAt: sqlite.WhereNull[Q, time.Time](cols.ExpiresAt),
@@ -836,8 +836,11 @@ func (os InviteSlice) LoadCreatedByUser(ctx context.Context, exec bob.Executor, 
 		}
 
 		for _, rel := range users {
+			if !o.CreatedBy.IsValue() {
+				continue
+			}
 
-			if !(o.CreatedBy == rel.ID) {
+			if !(o.CreatedBy.IsValue() && o.CreatedBy.MustGet() == rel.ID) {
 				continue
 			}
 

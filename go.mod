@@ -3,9 +3,11 @@ module github.com/h1divp/yippee
 go 1.26.0
 
 require (
+	github.com/aarondl/opt v0.0.0-20250607033636-982744e1bd65
+	github.com/jaswdr/faker/v2 v2.9.1
 	github.com/pressly/goose/v3 v3.26.0
 	github.com/stephenafamo/bob v0.42.0
-	github.com/stephenafamo/scan v0.7.0
+	github.com/urfave/cli/v3 v3.7.0
 	golang.org/x/crypto v0.48.0
 	modernc.org/sqlite v1.45.0
 )
@@ -15,7 +17,6 @@ require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.3.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
-	github.com/aarondl/opt v0.0.0-20250607033636-982744e1bd65 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
@@ -24,7 +25,6 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
-	github.com/jaswdr/faker/v2 v2.9.1 // indirect
 	github.com/knadh/koanf/maps v0.1.1 // indirect
 	github.com/knadh/koanf/parsers/yaml v0.1.0 // indirect
 	github.com/knadh/koanf/providers/confmap v0.1.0 // indirect
@@ -42,9 +42,9 @@ require (
 	github.com/sethvargo/go-retry v0.3.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.7.0 // indirect
+	github.com/stephenafamo/scan v0.7.0 // indirect
 	github.com/stephenafamo/sqlparser v0.0.0-20250521201114-5cfed001272d // indirect
 	github.com/urfave/cli/v2 v2.23.7 // indirect
-	github.com/urfave/cli/v3 v3.7.0 // indirect
 	github.com/volatiletech/inflect v0.0.1 // indirect
 	github.com/volatiletech/strmangle v0.0.6 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect

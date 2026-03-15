@@ -30,11 +30,12 @@ var (
 )
 
 type AuthService struct {
-	store *store.Store
+	store        *store.Store
+	sessionStore *store.SessionStore
 }
 
-func NewAuthService(store *store.Store) *AuthService {
-	return &AuthService{store}
+func NewAuthService(store *store.Store, sessionStore *store.SessionStore) *AuthService {
+	return &AuthService{store, sessionStore}
 }
 
 func (s *AuthService) Register(ctx context.Context, username, password string) (*models.User, string, error) {
@@ -66,13 +67,11 @@ func (s *AuthService) Register(ctx context.Context, username, password string) (
 		return nil, "", fmt.Errorf("creating user: %w", err)
 	}
 
-	if _, err = s.store.CreateSession(ctx, tx, &models.SessionSetter{
-		Token:     omit.From(token),
-		UserID:    omit.From(user.ID),
-		ExpiresAt: omit.From(time.Now().Add(30 * 24 * time.Hour)),
-	}); err != nil {
-		return nil, "", fmt.Errorf("creating session: %w", err)
-	}
+	s.sessionStore.Put(token, store.Session{
+		UserID:    user.ID,
+		CreatedAt: time.Now(),
+		ExpiresAt: time.Now().Add(time.Hour * 24 * 30), // 1 month
+	})
 
 	if err = tx.Commit(); err != nil {
 		return nil, "", fmt.Errorf("committing transaction: %w", err)
@@ -103,24 +102,19 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*mo
 		return nil, "", fmt.Errorf("generating session token: %w", err)
 	}
 
-	if _, err = s.store.CreateSession(ctx, nil, &models.SessionSetter{
-		Token:     omit.From(token),
-		UserID:    omit.From(user.ID),
-		ExpiresAt: omit.From(time.Now().Add(30 * 24 * time.Hour)),
-	}); err != nil {
-		return nil, "", fmt.Errorf("creating session: %w", err)
-	}
+	s.sessionStore.Put(token, store.Session{
+		UserID:    user.ID,
+		CreatedAt: time.Now(),
+		ExpiresAt: time.Now().Add(time.Hour * 24 * 30), // 1 month
+	})
 
 	return user, token, nil
 }
 
 func (s *AuthService) ValidateSession(ctx context.Context, token string) (*models.User, error) {
-	sess, err := s.store.GetSessionByToken(ctx, token)
-	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			return nil, ErrInvalidCredentials
-		}
-		return nil, fmt.Errorf("fetching session: %w", err)
+	sess, ok := s.sessionStore.Get(token)
+	if !ok {
+		return nil, ErrInvalidCredentials
 	}
 
 	if time.Now().After(sess.ExpiresAt) {

@@ -13,15 +13,10 @@ var (
 	inviteRelUsedByUserCtx        = newContextual[bool]("invites.users.fk_invites_0")
 	inviteRelCreatedByUserCtx     = newContextual[bool]("invites.users.fk_invites_1")
 
-	// Relationship Contexts for sessions
-	sessionWithParentsCascadingCtx = newContextual[bool]("sessionWithParentsCascading")
-	sessionRelUserCtx              = newContextual[bool]("sessions.users.fk_sessions_0")
-
 	// Relationship Contexts for users
 	userWithParentsCascadingCtx = newContextual[bool]("userWithParentsCascading")
 	userRelUsedByInvitesCtx     = newContextual[bool]("invites.users.fk_invites_0")
 	userRelCreatedByInvitesCtx  = newContextual[bool]("invites.users.fk_invites_1")
-	userRelSessionsCtx          = newContextual[bool]("sessions.users.fk_sessions_0")
 )
 
 // Contextual is a convienience wrapper around context.WithValue and context.Value
