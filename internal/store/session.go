@@ -1,40 +1,81 @@
 package store
 
 import (
-	"context"
-	"database/sql"
-	"errors"
-
-	"github.com/h1divp/yippee/internal/models"
-	"github.com/stephenafamo/bob/dialect/sqlite"
-	"github.com/stephenafamo/bob/dialect/sqlite/dm"
-	"github.com/stephenafamo/bob/dialect/sqlite/sm"
+	"log/slog"
+	"sync"
+	"time"
 )
 
-func (s *Store) CreateSession(ctx context.Context, tx *sql.Tx, setter *models.SessionSetter) (*models.Session, error) {
-	sess, err := models.Sessions.Insert(setter).One(ctx, s.executor(tx))
-	if err != nil {
-		return nil, err
-	}
-	return sess, nil
+type Session struct {
+	UserID    int64
+	CreatedAt time.Time
+	ExpiresAt time.Time
 }
 
-func (s *Store) GetSessionByToken(ctx context.Context, token string) (*models.Session, error) {
-	sess, err := models.Sessions.Query(
-		sm.Where(models.Sessions.Columns.Token.EQ(sqlite.Arg(token))),
-	).One(ctx, s.db)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
+type SessionStore struct {
+	mu       sync.RWMutex
+	sessions map[string]Session
+
+	done chan struct{}
+}
+
+func NewSessionStore() *SessionStore {
+	s := &SessionStore{
+		sessions: make(map[string]Session),
+		done:     make(chan struct{}),
+	}
+
+	//TODO(janitor): This should be configurable through settings
+	go s.RunJanitor(5 * time.Minute)
+	return s
+}
+
+func (s *SessionStore) Get(token string) (Session, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sess, ok := s.sessions[token]
+	return sess, ok
+}
+
+func (s *SessionStore) Put(token string, sess Session) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sessions[token] = sess
+}
+
+func (s *SessionStore) Delete(token string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.sessions, token)
+}
+
+func (s *SessionStore) Close() {
+	close(s.done)
+}
+
+func (s *SessionStore) RunJanitor(interval time.Duration) {
+	// Set interval < 0 to never clean up automatically
+	if interval <= 0 {
+		slog.Warn("Session storage will not be automatically pruned.")
+		return
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.mu.Lock()
+			now := time.Now()
+			for t, sess := range s.sessions {
+				if now.After(sess.ExpiresAt) {
+					delete(s.sessions, t)
+				}
+			}
+			s.mu.Unlock()
+		case <-s.done:
+			return
 		}
-		return nil, err
 	}
-	return sess, nil
-}
-
-func (s *Store) DeleteSession(ctx context.Context, token string) error {
-	_, err := models.Sessions.Delete(
-		dm.Where(models.Sessions.Columns.Token.EQ(sqlite.Arg(token))),
-	).Exec(ctx, s.db)
-	return err
 }

@@ -12,9 +12,8 @@ import (
 )
 
 type Factory struct {
-	baseInviteMods  InviteModSlice
-	baseSessionMods SessionModSlice
-	baseUserMods    UserModSlice
+	baseInviteMods InviteModSlice
+	baseUserMods   UserModSlice
 }
 
 func New() *Factory {
@@ -42,7 +41,7 @@ func (f *Factory) FromExistingInvite(m *models.Invite) *InviteTemplate {
 
 	o.ID = func() int64 { return m.ID }
 	o.Code = func() string { return m.Code }
-	o.CreatedBy = func() int64 { return m.CreatedBy }
+	o.CreatedBy = func() null.Val[int64] { return m.CreatedBy }
 	o.UsedBy = func() null.Val[int64] { return m.UsedBy }
 	o.UsedAt = func() null.Val[time.Time] { return m.UsedAt }
 	o.ExpiresAt = func() null.Val[time.Time] { return m.ExpiresAt }
@@ -54,39 +53,6 @@ func (f *Factory) FromExistingInvite(m *models.Invite) *InviteTemplate {
 	}
 	if m.R.CreatedByUser != nil {
 		InviteMods.WithExistingCreatedByUser(m.R.CreatedByUser).Apply(ctx, o)
-	}
-
-	return o
-}
-
-func (f *Factory) NewSession(mods ...SessionMod) *SessionTemplate {
-	return f.NewSessionWithContext(context.Background(), mods...)
-}
-
-func (f *Factory) NewSessionWithContext(ctx context.Context, mods ...SessionMod) *SessionTemplate {
-	o := &SessionTemplate{f: f}
-
-	if f != nil {
-		f.baseSessionMods.Apply(ctx, o)
-	}
-
-	SessionModSlice(mods).Apply(ctx, o)
-
-	return o
-}
-
-func (f *Factory) FromExistingSession(m *models.Session) *SessionTemplate {
-	o := &SessionTemplate{f: f, alreadyPersisted: true}
-
-	o.ID = func() int64 { return m.ID }
-	o.Token = func() string { return m.Token }
-	o.UserID = func() int64 { return m.UserID }
-	o.ExpiresAt = func() time.Time { return m.ExpiresAt }
-	o.CreatedAt = func() time.Time { return m.CreatedAt }
-
-	ctx := context.Background()
-	if m.R.User != nil {
-		SessionMods.WithExistingUser(m.R.User).Apply(ctx, o)
 	}
 
 	return o
@@ -127,9 +93,6 @@ func (f *Factory) FromExistingUser(m *models.User) *UserTemplate {
 	if len(m.R.CreatedByInvites) > 0 {
 		UserMods.AddExistingCreatedByInvites(m.R.CreatedByInvites...).Apply(ctx, o)
 	}
-	if len(m.R.Sessions) > 0 {
-		UserMods.AddExistingSessions(m.R.Sessions...).Apply(ctx, o)
-	}
 
 	return o
 }
@@ -140,14 +103,6 @@ func (f *Factory) ClearBaseInviteMods() {
 
 func (f *Factory) AddBaseInviteMod(mods ...InviteMod) {
 	f.baseInviteMods = append(f.baseInviteMods, mods...)
-}
-
-func (f *Factory) ClearBaseSessionMods() {
-	f.baseSessionMods = nil
-}
-
-func (f *Factory) AddBaseSessionMod(mods ...SessionMod) {
-	f.baseSessionMods = append(f.baseSessionMods, mods...)
 }
 
 func (f *Factory) ClearBaseUserMods() {

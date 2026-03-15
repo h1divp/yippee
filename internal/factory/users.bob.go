@@ -55,7 +55,6 @@ type UserTemplate struct {
 type userR struct {
 	UsedByInvites    []*userRUsedByInvitesR
 	CreatedByInvites []*userRCreatedByInvitesR
-	Sessions         []*userRSessionsR
 }
 
 type userRUsedByInvitesR struct {
@@ -65,10 +64,6 @@ type userRUsedByInvitesR struct {
 type userRCreatedByInvitesR struct {
 	number int
 	o      *InviteTemplate
-}
-type userRSessionsR struct {
-	number int
-	o      *SessionTemplate
 }
 
 // Apply mods to the UserTemplate
@@ -99,25 +94,12 @@ func (t UserTemplate) setModelRels(o *models.User) {
 		for _, r := range t.r.CreatedByInvites {
 			related := r.o.BuildMany(r.number)
 			for _, rel := range related {
-				rel.CreatedBy = o.ID // h2
+				rel.CreatedBy = null.From(o.ID) // h2
 				rel.R.CreatedByUser = o
 			}
 			rel = append(rel, related...)
 		}
 		o.R.CreatedByInvites = rel
-	}
-
-	if t.r.Sessions != nil {
-		rel := models.SessionSlice{}
-		for _, r := range t.r.Sessions {
-			related := r.o.BuildMany(r.number)
-			for _, rel := range related {
-				rel.UserID = o.ID // h2
-				rel.R.User = o
-			}
-			rel = append(rel, related...)
-		}
-		o.R.Sessions = rel
 	}
 }
 
@@ -273,26 +255,6 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 				}
 
 				err = m.AttachCreatedByInvites(ctx, exec, rel1...)
-				if err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	isSessionsDone, _ := userRelSessionsCtx.Value(ctx)
-	if !isSessionsDone && o.r.Sessions != nil {
-		ctx = userRelSessionsCtx.WithValue(ctx, true)
-		for _, r := range o.r.Sessions {
-			if r.o.alreadyPersisted {
-				m.R.Sessions = append(m.R.Sessions, r.o.Build())
-			} else {
-				rel2, err := r.o.CreateMany(ctx, exec, r.number)
-				if err != nil {
-					return err
-				}
-
-				err = m.AttachSessions(ctx, exec, rel2...)
 				if err != nil {
 					return err
 				}
@@ -797,53 +759,5 @@ func (m userMods) AddExistingCreatedByInvites(existingModels ...*models.Invite) 
 func (m userMods) WithoutCreatedByInvites() UserMod {
 	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
 		o.r.CreatedByInvites = nil
-	})
-}
-
-func (m userMods) WithSessions(number int, related *SessionTemplate) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		o.r.Sessions = []*userRSessionsR{{
-			number: number,
-			o:      related,
-		}}
-	})
-}
-
-func (m userMods) WithNewSessions(number int, mods ...SessionMod) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		related := o.f.NewSessionWithContext(ctx, mods...)
-		m.WithSessions(number, related).Apply(ctx, o)
-	})
-}
-
-func (m userMods) AddSessions(number int, related *SessionTemplate) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		o.r.Sessions = append(o.r.Sessions, &userRSessionsR{
-			number: number,
-			o:      related,
-		})
-	})
-}
-
-func (m userMods) AddNewSessions(number int, mods ...SessionMod) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		related := o.f.NewSessionWithContext(ctx, mods...)
-		m.AddSessions(number, related).Apply(ctx, o)
-	})
-}
-
-func (m userMods) AddExistingSessions(existingModels ...*models.Session) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		for _, em := range existingModels {
-			o.r.Sessions = append(o.r.Sessions, &userRSessionsR{
-				o: o.f.FromExistingSession(em),
-			})
-		}
-	})
-}
-
-func (m userMods) WithoutSessions() UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		o.r.Sessions = nil
 	})
 }

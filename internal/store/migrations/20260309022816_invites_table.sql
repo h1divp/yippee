@@ -3,7 +3,7 @@
 CREATE TABLE invites (
     id INTEGER PRIMARY KEY,
     code TEXT NOT NULL UNIQUE,
-    created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_by INTEGER REFERENCES users(id) ON DELETE CASCADE, -- Nullable for first user
     used_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     used_at DATETIME,
     expires_at DATETIME,

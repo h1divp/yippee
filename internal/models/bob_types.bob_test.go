@@ -11,8 +11,5 @@ var testDB bob.Transactor[bob.Tx]
 // Make sure the type Invite runs hooks after queries
 var _ bob.HookableType = &Invite{}
 
-// Make sure the type Session runs hooks after queries
-var _ bob.HookableType = &Session{}
-
 // Make sure the type User runs hooks after queries
 var _ bob.HookableType = &User{}
