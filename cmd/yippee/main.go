@@ -9,8 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/h1divp/yippee/internal/api"
 	"github.com/h1divp/yippee/internal/config"
-	"github.com/h1divp/yippee/internal/handlers"
 	"github.com/h1divp/yippee/internal/services"
 	"github.com/h1divp/yippee/internal/store"
 	"github.com/urfave/cli/v3"
@@ -38,20 +38,12 @@ func main() {
 					defer sessionStore.Close()
 
 					authServ := services.NewAuthService(db, sessionStore)
-					authHandler := handlers.NewAuthHandler(authServ)
-
-					mux := http.NewServeMux()
-
-					mux.HandleFunc("POST /auth/register", authHandler.RegisterHandler)
-					mux.HandleFunc("POST /auth/login", authHandler.LoginHandler)
-					mux.HandleFunc("GET /auth/self", authHandler.SelfHandler)
-
-					authMux := handlers.AuthMiddleware(authServ)(mux)
+					router := api.New(authServ)
 
 					addr := fmt.Sprintf(":%d", port)
 					server := &http.Server{
 						Addr:    addr,
-						Handler: authMux,
+						Handler: router.Handler(),
 					}
 
 					go func() {

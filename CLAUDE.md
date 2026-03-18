@@ -82,7 +82,6 @@ SvelteKit SPA (web/)
   - `auth.go` — `AuthHandler` with `RegisterHandler`, `LoginHandler`, `SelfHandler`.
   - `middleware.go` — `AuthMiddleware` reads `session` cookie, validates via `AuthService`, injects `*models.User` into context. `UserFromContext(ctx)` helper to extract it. Passes through if no cookie (handlers decide whether auth is required).
   - `response.go` — `writeJSON`, `writeError`, `setSessionCookie` helpers.
-- **`internal/auth`** — Legacy stub, superseded by `internal/services`. Safe to remove.
 - **`tools/gendb/`** — Dev tool (not part of the server binary). Creates `gen.db` for `make generate`.
 
 ### Database
@@ -355,4 +354,3 @@ Run `go test -race ./...` regularly (or in CI) to catch data races early, especi
 - Invite code validation in `RegisterHandler` (placeholder TODO).
 - Frontend auth is mocked — needs real API integration.
 - File upload, serving, browsing, sharing, thumbnails — not yet implemented.
-- `internal/auth/` legacy stub can be deleted.

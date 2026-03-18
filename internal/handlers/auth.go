@@ -17,6 +17,10 @@ func NewAuthHandler(authServ *services.AuthService) *AuthHandler {
 	return &AuthHandler{authServ}
 }
 
+func (h *AuthHandler) AuthServ() *services.AuthService {
+	return h.authServ
+}
+
 type RegisterBody struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
