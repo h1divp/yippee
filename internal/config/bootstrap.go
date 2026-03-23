@@ -38,3 +38,26 @@ func Bootstrap() string {
 	fmt.Println("Yippee! Finished scaffolding filesystem.")
 	return basePath
 }
+
+func ValidateStructure() (string, bool) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", false
+	}
+
+	basePath := filepath.Join(home, ".yippee")
+	required := []string{
+		basePath,
+		filepath.Join(basePath, "users"),
+		filepath.Join(basePath, "thumbs"),
+	}
+
+	for _, dir := range required {
+		info, err := os.Stat(dir)
+		if err != nil || !info.IsDir() {
+			return "", false
+		}
+	}
+
+	return basePath, true
+}

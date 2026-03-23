@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/h1divp/yippee/internal/config"
+	"github.com/h1divp/yippee/internal/store"
 	"github.com/urfave/cli/v3"
 )
 
@@ -85,6 +88,19 @@ func UserCommands() *cli.Command {
 }
 
 func createUser(ctx context.Context, cmd *cli.Command) error {
+	// First ensure filesystem is scaffolded
+	basePath, ok := config.ValidateStructure()
+	if !ok {
+		fmt.Println("Yippee not initialized. Please run 'yippee init' before creating users.")
+		return nil
+	}
+	// Then ensure DB can connect
+	_, err := store.New(basePath)
+	if err != nil {
+		fmt.Errorf("something went wrong connecting to sqlite: %w", err)
+		return err
+	}
+
 	username, password, isAdmin := cmd.String("username"), cmd.String("password"), cmd.Bool("admin")
 
 	var fields []huh.Field
