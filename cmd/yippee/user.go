@@ -9,6 +9,7 @@ import (
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/h1divp/yippee/internal/config"
+	"github.com/h1divp/yippee/internal/services"
 	"github.com/h1divp/yippee/internal/store"
 	"github.com/urfave/cli/v3"
 )
@@ -95,11 +96,11 @@ func createUser(ctx context.Context, cmd *cli.Command) error {
 		return nil
 	}
 	// Then ensure DB can connect
-	_, err := store.New(basePath)
+	s, err := store.New(basePath)
 	if err != nil {
-		fmt.Errorf("something went wrong connecting to sqlite: %w", err)
-		return err
+		return fmt.Errorf("connecting to sqlite: %w", err)
 	}
+	defer s.Close()
 
 	username, password, isAdmin := cmd.String("username"), cmd.String("password"), cmd.Bool("admin")
 
@@ -165,7 +166,21 @@ func createUser(ctx context.Context, cmd *cli.Command) error {
 		}
 	}
 
-	// ─── TODO: hash password, sqlite insert, mkdir ───
+	// Create the user
+	role := services.RoleUser
+	if isAdmin {
+		role = services.RoleAdmin
+	}
+
+	userSvc := services.NewUserService(s, basePath)
+	_, err = userSvc.CreateUser(ctx, username, password, role)
+	if err != nil {
+		if errors.Is(err, services.ErrUsernameTaken) {
+			fmt.Printf("Username %q is already taken.\n", username)
+			return nil
+		}
+		return fmt.Errorf("creating user: %w", err)
+	}
 
 	// Role badge
 	roleBadge := userBadge.Render("user")
@@ -176,7 +191,7 @@ func createUser(ctx context.Context, cmd *cli.Command) error {
 	summary := strings.Join([]string{
 		labelStyle.Render("Username") + "  " + valueStyle.Render(username),
 		labelStyle.Render("Role") + "  " + roleBadge,
-		labelStyle.Render("Home") + "  " + valueStyle.Render("~/.yippee/data/"+username),
+		labelStyle.Render("Home") + "  " + valueStyle.Render("~/.yippee/users/"+username),
 	}, "\n")
 
 	lipgloss.Println(boxStyle.Render(

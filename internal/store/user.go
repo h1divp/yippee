@@ -14,7 +14,7 @@ import (
 func (s *Store) CreateUser(ctx context.Context, tx *sql.Tx, setter *models.UserSetter) (*models.User, error) {
 	user, err := models.Users.Insert(setter).One(ctx, s.executor(tx))
 	if err != nil {
-		if errors.Is(err, dberrors.UserErrors.ErrUniqueSqliteAutoindexUsers1) {
+		if errors.Is(dberrors.UserErrors.ErrUniqueSqliteAutoindexUsers1, err) {
 			return nil, ErrDuplicate
 		}
 		return nil, err
