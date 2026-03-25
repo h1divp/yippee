@@ -84,3 +84,17 @@ func (s *UserService) CreateUser(ctx context.Context, username, password string,
 
 	return user, nil
 }
+
+func (s *UserService) DeleteUserByUsername(ctx context.Context, username string) (err error) {
+	err = s.store.DeleteUserByUsername(ctx, nil, username)
+	if err != nil {
+		return fmt.Errorf("delete user by username: %w", err)
+	}
+
+	homeDir := filepath.Join(s.basePath, "users", username)
+	if err = os.RemoveAll(homeDir); err != nil {
+		return fmt.Errorf("deleting user directory: %w", err)
+	}
+
+	return nil
+}
