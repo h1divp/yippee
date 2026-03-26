@@ -8,6 +8,7 @@ import (
 	"github.com/h1divp/yippee/internal/dberrors"
 	"github.com/h1divp/yippee/internal/models"
 	"github.com/stephenafamo/bob/dialect/sqlite"
+	"github.com/stephenafamo/bob/dialect/sqlite/dm"
 	"github.com/stephenafamo/bob/dialect/sqlite/sm"
 )
 
@@ -44,4 +45,18 @@ func (s *Store) GetUserByID(ctx context.Context, id int64) (*models.User, error)
 		return nil, err
 	}
 	return user, nil
+}
+
+func (s *Store) DeleteUserByUsername(ctx context.Context, tx *sql.Tx, username string) error {
+	rowsAff, err := models.Users.Delete(
+		dm.Where(models.Users.Columns.Username.EQ(sqlite.Arg(username))),
+	).Exec(ctx, s.executor(tx))
+	if err != nil {
+		return err
+	}
+	if rowsAff == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }
