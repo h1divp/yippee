@@ -14,6 +14,7 @@
 		'Fact: 40% of all data is just cats wearing hats.',
 		'"To err is human but to really foul things up requires a computer." - Paul R. Ehrlich',
 		'"Keep your friends close, and your backups closer." - Anonymous',
+		'"To read 1,000 books is not as good as walking 1,000 miles" - Some Chinese Dude'
 	];
 
 	let currentMessage = $state(messages[0]);
@@ -41,7 +42,7 @@
 			{#key currentMessage}
 				<p
 					in:fade={{ duration: 300, delay: 100 }}
-					class="text-center font-mono text-sm tracking-wide text-base-content/50 max-w-xs"
+					class="max-w-xs text-center font-mono text-sm tracking-wide text-base-content/50"
 				>
 					{currentMessage}
 				</p>
