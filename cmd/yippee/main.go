@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 
+	"github.com/h1divp/yippee/internal/api"
 	"github.com/h1divp/yippee/internal/config"
+	"github.com/h1divp/yippee/internal/services"
 	"github.com/h1divp/yippee/internal/store"
 	"github.com/urfave/cli/v3"
 )
@@ -21,7 +22,27 @@ func main() {
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 
 					port := cmd.Uint16("port")
-					fmt.Println("(NOT IMPLEMENTED) Serving on port:", port)
+
+					basePath := config.Bootstrap()
+
+					s, err := store.New(basePath)
+					if err != nil {
+						log.Fatal(err)
+						return err
+					}
+					defer s.Close()
+
+					sessionStore := store.NewSessionStore()
+					authSrv := services.NewAuthService(s, sessionStore)
+					_ = services.NewUserService(s, basePath)
+
+					server := api.NewServer(authSrv)
+
+					if err := server.Serve(port); err != nil {
+						log.Fatal(err)
+						return err
+					}
+
 					return nil
 				},
 				Flags: []cli.Flag{
