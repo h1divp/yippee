@@ -18,7 +18,6 @@ type contextKey string
 
 const contextKeyUser contextKey = "user"
 
-// Middleware holds injected services needed by the middleware chain.
 type Middleware struct {
 	authService *services.AuthService
 }
@@ -28,10 +27,6 @@ func NewMiddleware(authService *services.AuthService) *Middleware {
 	return &Middleware{authService: authService}
 }
 
-// Auth reads the "session" cookie, validates it against the AuthService,
-// and injects the authenticated *models.User into the request context.
-// If there is no cookie or the session is invalid, the request proceeds
-// without a user — downstream handlers decide whether auth is required.
 func (m *Middleware) Auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("session")
