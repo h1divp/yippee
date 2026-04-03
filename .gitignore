@@ -30,3 +30,6 @@ Thumbs.db
 
 # Temporary database for code generation
 gen.db
+
+# The binary
+yippee
